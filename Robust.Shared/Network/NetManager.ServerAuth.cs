@@ -370,26 +370,41 @@ namespace Robust.Shared.Network
         private async void HandleApproval(NetIncomingMessage message)
         {
             DebugTools.Assert(message.SenderConnection != null);
-            // TODO: Maybe preemptively refuse connections here in some cases?
-            if (message.SenderConnection.Status != NetConnectionStatus.RespondedAwaitingApproval)
+            var connection = message.SenderConnection;
+            if (connection.Status != NetConnectionStatus.RespondedAwaitingApproval)
             {
                 // This can happen if the approval message comes in after the state changes to disconnected.
                 // In that case just ignore it.
                 return;
             }
 
-            if (HandleApprovalCallback != null)
+            if (!TryAcquireConnectionSlot(connection, out var denyReason))
             {
-                var approval = await HandleApprovalCallback(new NetApprovalEventArgs(message.SenderConnection));
-
-                if (!approval.IsApproved)
-                {
-                    message.SenderConnection.Deny(approval.DenyReason);
-                    return;
-                }
+                RejectHandshakeConnection(connection, denyReason);
+                return;
             }
 
-            message.SenderConnection.Approve();
+            try
+            {
+                if (HandleApprovalCallback != null)
+                {
+                    var approval = await HandleApprovalCallback(new NetApprovalEventArgs(connection));
+
+                    if (!approval.IsApproved)
+                    {
+                        ReleaseConnectionSlot(connection);
+                        RejectHandshakeConnection(connection, approval.DenyReason);
+                        return;
+                    }
+                }
+
+                connection.Approve();
+            }
+            catch
+            {
+                ReleaseConnectionSlot(connection);
+                throw;
+            }
         }
 
         // ReSharper disable ClassNeverInstantiated.Local

@@ -1,7 +1,14 @@
-﻿namespace Robust.Shared.Configuration;
+﻿using System;
+
+namespace Robust.Shared.Configuration;
 
 internal static class ConfigHelpers
 {
+    public static int GetLidgrenMaxConnections(this IConfigurationManager cfg)
+    {
+        return Math.Max(cfg.GetCVar(CVars.NetMaxConnections), 1);
+    }
+
     public static int GetEffectiveMaxConnections(this IConfigurationManager cfg)
     {
 #pragma warning disable CS0618

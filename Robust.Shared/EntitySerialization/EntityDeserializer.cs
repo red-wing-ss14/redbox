@@ -1179,7 +1179,8 @@ public sealed class EntityDeserializer :
         string msg;
         if (node.Value == "invalid")
         {
-            if (CurrentComponent == "Transform")
+            // Stale device network / device list references are common in saved maps.
+            if (CurrentComponent is "Transform" or "DeviceNetwork" or "DeviceList")
                 return EntityUid.Invalid;
 
             if (!Options.LogInvalidEntities)
