@@ -499,6 +499,13 @@ namespace Robust.Shared
         public static readonly CVarDef<string> NetIpFilterBanFile =
             CVarDef.Create("net.ip_filter_ban_file", "/net_ip_filter_bans.json", CVar.SERVERONLY);
 
+        /// <summary>
+        /// Path relative to server user data to a JSON array of IPs and CIDR ranges
+        /// that should bypass all connection filtering (ignore list/whitelist).
+        /// </summary>
+        public static readonly CVarDef<string> NetIpFilterIgnoreFile =
+            CVarDef.Create("net.ip_filter_ignore_file", "/net_ip_filter_ignore.json", CVar.SERVERONLY);
+
         /**
          * TRANSFER
          */

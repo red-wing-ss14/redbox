@@ -26,8 +26,11 @@ public sealed partial class NetManager
     private readonly HashSet<IPAddress> _ipPermanentlyBlocked = new();
     private readonly HashSet<NetConnection> _connectionsWithReservedSlot = new();
     private readonly Dictionary<NetConnection, string> _rejectOnConnected = new();
+    private readonly HashSet<IPAddress> _ipIgnoreExact = new();
+    private readonly List<(IPAddress networkAddress, IPAddress mask)> _ipIgnoreCidr = new();
     private TimeSpan _lastConnectionFilterCleanup;
     private bool _connectionFilterBansLoaded;
+    private bool _connectionFilterIgnoresLoaded;
 
     private void RejectHandshakeConnection(NetConnection connection, string reason)
     {
@@ -62,6 +65,9 @@ public sealed partial class NetManager
 
         CleanupConnectionFilter(now);
 
+        if (IsIpIgnored(ip))
+            return AcquireConnectionSlotForIp(ip, connection);
+
         if (_ipPermanentlyBlocked.Contains(ip))
             return false;
 
@@ -94,10 +100,7 @@ public sealed partial class NetManager
             }
         }
 
-        _ipActiveConnectionCount.TryGetValue(ip, out var count);
-        _ipActiveConnectionCount[ip] = count + 1;
-        _connectionsWithReservedSlot.Add(connection);
-        return true;
+        return AcquireConnectionSlotForIp(ip, connection);
     }
 
     private void ReleaseConnectionSlot(NetConnection connection)
@@ -331,6 +334,156 @@ public sealed partial class NetManager
         {
             foreach (var ip in expiredRates)
                 _ipRateStates.Remove(ip);
+        }
+    }
+
+    private bool AcquireConnectionSlotForIp(IPAddress ip, NetConnection connection)
+    {
+        _ipActiveConnectionCount.TryGetValue(ip, out var count);
+        _ipActiveConnectionCount[ip] = count + 1;
+        _connectionsWithReservedSlot.Add(connection);
+        return true;
+    }
+
+    private bool IsIpIgnored(IPAddress ip)
+    {
+        EnsureConnectionFilterIgnoresLoaded();
+
+        if (_ipIgnoreExact.Contains(ip))
+            return true;
+
+        foreach (var (networkAddress, mask) in _ipIgnoreCidr)
+        {
+            if (IpMatchesCidr(ip, networkAddress, mask))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool IpMatchesCidr(IPAddress ip, IPAddress networkAddress, IPAddress mask)
+    {
+        if (ip.AddressFamily != networkAddress.AddressFamily)
+            return false;
+
+        var ipBytes = ip.GetAddressBytes();
+        var networkBytes = networkAddress.GetAddressBytes();
+        var maskBytes = mask.GetAddressBytes();
+
+        for (var i = 0; i < ipBytes.Length; i++)
+        {
+            if ((ipBytes[i] & maskBytes[i]) != networkBytes[i])
+                return false;
+        }
+
+        return true;
+    }
+
+    private static bool TryParseCidr(string cidr, out IPAddress networkAddress, out IPAddress mask)
+    {
+        networkAddress = null!;
+        mask = null!;
+
+        var slashIndex = cidr.IndexOf('/');
+        if (slashIndex < 0)
+            return false;
+
+        var ipPart = cidr[..slashIndex];
+        var prefixPart = cidr[(slashIndex + 1)..];
+
+        if (!IPAddress.TryParse(ipPart, out var addr))
+            return false;
+
+        if (!int.TryParse(prefixPart, out var prefixLength))
+            return false;
+
+        var addrBytes = addr.GetAddressBytes();
+        var totalBits = addrBytes.Length * 8;
+
+        if (prefixLength < 0 || prefixLength > totalBits)
+            return false;
+
+        var maskBytes = new byte[addrBytes.Length];
+        for (var i = 0; i < maskBytes.Length; i++)
+        {
+            if (prefixLength >= (i + 1) * 8)
+                maskBytes[i] = 0xFF;
+            else if (prefixLength <= i * 8)
+                maskBytes[i] = 0x00;
+            else
+            {
+                var bitsInThisByte = prefixLength - i * 8;
+                maskBytes[i] = (byte)(0xFF << (8 - bitsInThisByte));
+            }
+        }
+
+        mask = new IPAddress(maskBytes);
+
+        for (var i = 0; i < addrBytes.Length; i++)
+            addrBytes[i] &= maskBytes[i];
+
+        networkAddress = new IPAddress(addrBytes);
+        return true;
+    }
+
+    private ResPath GetConnectionFilterIgnoreFilePath()
+    {
+        return new ResPath(_config.GetCVar(CVars.NetIpFilterIgnoreFile));
+    }
+
+    private void EnsureConnectionFilterIgnoresLoaded()
+    {
+        if (_connectionFilterIgnoresLoaded || !CanUseConnectionFilterBanStorage())
+            return;
+
+        _connectionFilterIgnoresLoaded = true;
+        LoadConnectionFilterIgnores();
+    }
+
+    private void LoadConnectionFilterIgnores()
+    {
+        var path = GetConnectionFilterIgnoreFilePath();
+        if (!_resource.UserData.TryReadAllText(path, out var text))
+            return;
+
+        List<string>? data;
+        try
+        {
+            data = JsonSerializer.Deserialize<List<string>>(text, ConnectionFilterBanJsonOptions);
+        }
+        catch (Exception e)
+        {
+            _logger.Error("Failed to deserialize connection filter ignore file {IgnoreFile}: {Error}", path, e);
+            return;
+        }
+
+        if (data == null)
+            return;
+
+        foreach (var entry in data)
+        {
+            if (TryParseCidr(entry, out var networkAddress, out var mask))
+            {
+                _ipIgnoreCidr.Add((networkAddress, mask));
+                continue;
+            }
+
+            if (!IPAddress.TryParse(entry, out var address))
+            {
+                _logger.Warning("Skipping invalid entry in connection filter ignore file: {Entry}", entry);
+                continue;
+            }
+
+            _ipIgnoreExact.Add(NormalizeConnectionIp(address));
+        }
+
+        if (_ipIgnoreExact.Count > 0 || _ipIgnoreCidr.Count > 0)
+        {
+            _logger.Info(
+                "Loaded {ExactCount} exact IP(s) and {CidrCount} CIDR range(s) from {IgnoreFile}",
+                _ipIgnoreExact.Count,
+                _ipIgnoreCidr.Count,
+                path);
         }
     }
 
