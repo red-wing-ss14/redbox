@@ -639,7 +639,7 @@ namespace Robust.Shared.Network
             if (IsServer)
             {
                 netConfig.SetMessageTypeEnabled(NetIncomingMessageType.ConnectionApproval, true);
-                netConfig.MaximumConnections = _config.GetEffectiveMaxConnections();
+                netConfig.MaximumConnections = _config.GetEffectiveMaxConnections() + _config.GetCVar(CVars.NetHandshakeBufferConnections);
             }
             else
             {
