@@ -35,6 +35,18 @@ namespace Robust.Shared
             CVarDef.Create("net.max_connections", 256, CVar.ARCHIVE | CVar.REPLICATED | CVar.SERVER);
 
         /// <summary>
+        /// Timeout in seconds for completing the connection handshake on the server.
+        /// </summary>
+        public static readonly CVarDef<float> NetHandshakeTimeout =
+            CVarDef.Create("net.handshake_timeout", 15.0f, CVar.ARCHIVE | CVar.SERVER);
+
+        /// <summary>
+        /// Extra connection slots allowed on the server to prevent handshake floods from blocking the server.
+        /// </summary>
+        public static readonly CVarDef<int> NetHandshakeBufferConnections =
+            CVarDef.Create("net.handshake_buffer_connections", 100, CVar.ARCHIVE | CVar.SERVER);
+
+        /// <summary>
         /// UDP port to bind to for main game networking.
         /// Each address specified in <c>net.bindto</c> is bound with this port.
         /// </summary>

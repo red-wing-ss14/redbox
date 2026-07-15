@@ -1,10 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Immutable;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using Lidgren.Network;
 using Robust.Shared.AuthLib;
@@ -36,12 +37,15 @@ namespace Robust.Shared.Network
 
         private async void HandleHandshake(NetPeerData peer, NetConnection connection)
         {
+            var timeoutSeconds = _config.GetCVar(CVars.NetHandshakeTimeout);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+
             try
             {
                 _logger.Verbose($"{connection.RemoteEndPoint}: Starting handshake with peer ");
 
                 _logger.Verbose($"{connection.RemoteEndPoint}: Awaiting MsgLoginStart");
-                var incPacket = await AwaitData(connection);
+                var incPacket = await AwaitData(connection, cts.Token);
 
                 var msgLogin = new MsgLoginStart();
                 msgLogin.ReadFromBuffer(incPacket, _serializer);
@@ -97,7 +101,7 @@ namespace Robust.Shared.Network
                     _logger.Verbose(
                         $"{connection.RemoteEndPoint}: Awaiting MsgEncryptionResponse");
 
-                    incPacket = await AwaitData(connection);
+                    incPacket = await AwaitData(connection, cts.Token);
 
                     var msgEncResponse = new MsgEncryptionResponse();
                     msgEncResponse.ReadFromBuffer(incPacket, _serializer);
@@ -141,7 +145,7 @@ namespace Robust.Shared.Network
                     var authHash = Base64Helpers.ConvertToBase64Url(authHashBytes);
 
                     var url = $"{authServer}api/session/hasJoined?hash={authHash}&userId={msgEncResponse.UserId}";
-                    var joinedRespJson = await _http.Client.GetFromJsonAsync<HasJoinedResponse>(url);
+                    var joinedRespJson = await _http.Client.GetFromJsonAsync<HasJoinedResponse>(url, cts.Token);
 
                     if (joinedRespJson is not {IsValid: true})
                     {
@@ -312,6 +316,11 @@ namespace Robust.Shared.Network
             catch (ClientDisconnectedException)
             {
                 _logger.Info($"Peer {NetUtility.ToHexString(connection.RemoteUniqueIdentifier)} disconnected while handshake was in-progress.");
+            }
+            catch (OperationCanceledException)
+            {
+                connection.Disconnect("Handshake timed out.");
+                _logger.Info("Peer {0} handshake timed out.", connection.RemoteEndPoint);
             }
             catch (Exception e)
             {
