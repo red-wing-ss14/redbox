@@ -104,7 +104,13 @@ namespace Robust.Shared.Network
                     incPacket = await AwaitData(connection, cts.Token);
 
                     var msgEncResponse = new MsgEncryptionResponse();
-                    msgEncResponse.ReadFromBuffer(incPacket, _serializer);
+                    if (!msgEncResponse.TryReadFromBuffer(incPacket))
+                    {
+                        connection.Disconnect("Malformed encryption response.");
+                        _logger.Warning("{ConnectionEndpoint}: Malformed MsgEncryptionResponse during handshake.",
+                            connection.RemoteEndPoint);
+                        return;
+                    }
 
                     _logger.Verbose(
                         $"{connection.RemoteEndPoint}: Received MsgEncryptionResponse");
