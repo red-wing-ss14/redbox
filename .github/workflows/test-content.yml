@@ -38,6 +38,8 @@ jobs:
           git submodule update --init --recursive
       - name: Install dependencies
         run: dotnet restore
+      - name: Build XAML compiler task
+        run: dotnet build RobustToolbox/Robust.Client.Injectors/Robust.Client.Injectors.csproj --configuration Debug
       - name: Build
         run: dotnet build --configuration Tools --no-restore
       - name: Content.Tests
