@@ -27,8 +27,14 @@ jobs:
       - name: Check out engine version
         run: |
           cd RobustToolbox
-          git fetch origin ${{ github.sha }}
+          git remote set-url origin https://github.com/${{ github.repository }}.git
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin refs/pull/${{ github.event.pull_request.number }}/merge
+          else
+            git fetch origin ${{ github.sha }}
+          fi
           git checkout FETCH_HEAD
+          git submodule sync --recursive
           git submodule update --init --recursive
       - name: Replace global.json
         run: cp RobustToolbox/global.json .
