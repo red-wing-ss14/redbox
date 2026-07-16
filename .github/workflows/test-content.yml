@@ -14,7 +14,7 @@ jobs:
       - name: Check out content
         uses: actions/checkout@v4.2.2
         with:
-          repository: space-wizards/space-station-14
+          repository: red-wing-ss14/ss14-core
           submodules: recursive
 
       - name: Setup .NET Core
@@ -27,11 +27,19 @@ jobs:
       - name: Check out engine version
         run: |
           cd RobustToolbox
-          git fetch origin ${{ github.sha }}
+          git remote set-url origin https://github.com/${{ github.repository }}.git
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin refs/pull/${{ github.event.pull_request.number }}/merge
+          else
+            git fetch origin ${{ github.sha }}
+          fi
           git checkout FETCH_HEAD
+          git submodule sync --recursive
           git submodule update --init --recursive
       - name: Install dependencies
         run: dotnet restore
+      - name: Build XAML compiler task
+        run: dotnet build RobustToolbox/Robust.Client.Injectors/Robust.Client.Injectors.csproj --configuration Debug
       - name: Build
         run: dotnet build --configuration Tools --no-restore
       - name: Content.Tests
