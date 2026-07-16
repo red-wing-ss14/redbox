@@ -36,6 +36,20 @@ namespace Robust.Shared
             CVarDef.Create("net.max_connections", 256, CVar.ARCHIVE | CVar.REPLICATED | CVar.SERVER);
 
         /// <summary>
+        /// Maximum amount of Lidgren connections and in-progress Lidgren handshakes allowed from one IP address.
+        /// Set to 0 to disable the per-IP cap.
+        /// </summary>
+        public static readonly CVarDef<int> NetMaxConnectionsPerIp =
+            CVarDef.Create("net.max_connections_per_ip", 16, CVar.ARCHIVE | CVar.SERVER);
+
+        /// <summary>
+        /// Comma-separated IP addresses exempt from <see cref="NetMaxConnectionsPerIp"/>.
+        /// Useful for trusted proxy servers.
+        /// </summary>
+        public static readonly CVarDef<string> NetMaxConnectionsPerIpExempt =
+            CVarDef.Create("net.max_connections_per_ip_exempt", "", CVar.ARCHIVE | CVar.SERVER);
+
+        /// <summary>
         /// Timeout in seconds for completing the connection handshake on the server.
         /// </summary>
         public static readonly CVarDef<float> NetHandshakeTimeout =
@@ -46,6 +60,27 @@ namespace Robust.Shared
         /// </summary>
         public static readonly CVarDef<int> NetHandshakeBufferConnections =
             CVarDef.Create("net.handshake_buffer_connections", 100, CVar.ARCHIVE | CVar.SERVER);
+
+        /// <summary>
+        /// Maximum amount of pending Lidgren handshakes allowed from one IP address.
+        /// Set to 0 to disable the per-IP pending handshake cap.
+        /// </summary>
+        public static readonly CVarDef<int> NetHandshakeMaxPendingPerIp =
+            CVarDef.Create("net.handshake_max_pending_per_ip", 8, CVar.ARCHIVE | CVar.SERVER);
+
+        /// <summary>
+        /// Maximum amount of new Lidgren handshakes one IP address can start during the handshake rate-limit window.
+        /// Set to 0 to disable the per-IP handshake rate limit.
+        /// </summary>
+        public static readonly CVarDef<int> NetHandshakeRateLimitCount =
+            CVarDef.Create("net.handshake_rate_limit_count", 10, CVar.ARCHIVE | CVar.SERVER);
+
+        /// <summary>
+        /// Window in seconds for <see cref="NetHandshakeRateLimitCount"/>.
+        /// Set to 0 to disable the per-IP handshake rate limit.
+        /// </summary>
+        public static readonly CVarDef<float> NetHandshakeRateLimitWindow =
+            CVarDef.Create("net.handshake_rate_limit_window", 10.0f, CVar.ARCHIVE | CVar.SERVER);
 
         /// <summary>
         /// UDP port to bind to for main game networking.

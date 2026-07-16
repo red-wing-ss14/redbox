@@ -640,6 +640,11 @@ namespace Robust.Shared.Network
             {
                 netConfig.SetMessageTypeEnabled(NetIncomingMessageType.ConnectionApproval, true);
                 netConfig.MaximumConnections = _config.GetEffectiveMaxConnections() + _config.GetCVar(CVars.NetHandshakeBufferConnections);
+                netConfig.MaximumConnectionsPerAddress = _config.GetCVar(CVars.NetMaxConnectionsPerIp);
+                netConfig.MaximumConnectionsPerAddressExemptAddresses = ParseMaximumConnectionsPerIpExempt();
+                netConfig.MaximumPendingHandshakesPerAddress = _config.GetCVar(CVars.NetHandshakeMaxPendingPerIp);
+                netConfig.HandshakeRateLimitCount = _config.GetCVar(CVars.NetHandshakeRateLimitCount);
+                netConfig.HandshakeRateLimitWindow = _config.GetCVar(CVars.NetHandshakeRateLimitWindow);
             }
             else
             {
@@ -667,6 +672,31 @@ namespace Robust.Shared.Network
             netConfig.ExpandMTUFailAttempts = _config.GetCVar(CVars.NetMtuExpandFailAttempts);
 
             return netConfig;
+        }
+
+        private List<IPAddress> ParseMaximumConnectionsPerIpExempt()
+        {
+            var value = _config.GetCVar(CVars.NetMaxConnectionsPerIpExempt);
+            var addresses = new List<IPAddress>();
+
+            if (string.IsNullOrWhiteSpace(value))
+                return addresses;
+
+            foreach (var entry in value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (IPAddress.TryParse(entry, out var address))
+                {
+                    addresses.Add(address);
+                    continue;
+                }
+
+                _logger.Warning(
+                    "Ignoring invalid IP address {Address} in {CVar}",
+                    entry,
+                    CVars.NetMaxConnectionsPerIpExempt.Name);
+            }
+
+            return addresses;
         }
 
         private void _fakeLossChanged(float newValue)
