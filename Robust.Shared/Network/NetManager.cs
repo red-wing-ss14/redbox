@@ -113,7 +113,6 @@ namespace Robust.Shared.Network
         [Dependency] private readonly ProfManager _prof = default!;
         [Dependency] private readonly HttpClientHolder _http = default!;
         [Dependency] private readonly IHWId _hwId = default!;
-        [Dependency] private readonly ITransferManager _transfer = default!;
         [Dependency] private readonly IResourceManager _resource = default!;
 
         /// <summary>
