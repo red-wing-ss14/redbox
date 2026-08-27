@@ -977,7 +977,8 @@ namespace Robust.Shared.Network
             }
 
             // Attempt to decrypt the message, only logging if we fail to decrypt and we actually have encryption.
-            if ((!channel.Encryption?.TryDecrypt(msg)) ?? true)
+            bool shouldSkip = Auth != AuthMode.Required || _config.GetCVar(CVars.AuthAllowLocal);
+            if ((!channel.Encryption?.TryDecrypt(msg)) ?? !shouldSkip)
             {
                 if (_logPacketIssues)
                     _logger.Debug($"{msg.SenderConnection.RemoteEndPoint}: Got a packet that fails to decrypt.");
